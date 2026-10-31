@@ -146,6 +146,24 @@ npm start      # 等同 npm run dev
 再往下就得换运行时了：剩下 ~85 MB 全是 Electron 本体（Chromium + V8），
 想做到个位数 MB 只能改 WebView2 / Tauri 这类用系统浏览器的方案，等于重写外壳。
 
+## macOS 适配（待办）
+
+Windows 侧已经跑通，macOS 只写了分支、没在真机上验证过。要动的地方集中在 `main.js`：
+
+- `authDir()`：现在拼的是 `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth`，
+  macOS 上应该是 `~/Library/Application Support/CodeBuddyExtension/Data/Public/auth`；
+  两个 App 是否共用这个目录，得在真机上确认一次（这决定「借用昵称」还能不能用）
+- `standardExeCandidates()`：Windows 按 `.exe` 找安装位置；mac 要改成在 `/Applications/<App>.app`
+  里探测，找不到就走 `pickExe()` 让用户手动选（mac 上启动用 `open -a`，路径照样存 `launcher.json`）
+- `probeApp()` / `quitApp()` / `launchApp()` 的 darwin 分支：
+  `pgrep -f '<App>.app/Contents/MacOS'`、`osascript -e 'quit app "<App>"'`、`pkill -9 -f`、`open -a`，
+  写法参照 Windows，但「3 秒内优雅退出」这条要在 mac 上实测，不行就调时长
+- 图标：`npm run icon` 只出 512×512 PNG，mac 需要 `.icns`；`electron-builder.yml` 的 dmg/zip target 已就位，
+  补一个 `build/icon.icns`（或让 builder 从 PNG 转）即可
+
+**与平台无关、可直接复用的**：`sync.js` 全部、WebDAV 拉取/上传、自动同步与计时、界面三件套、
+`BUDDY_SWITCHER_HOME` 测试隔离。
+
 ### 自动化测试别碰真实数据
 
 程序用 `BUDDY_SWITCHER_HOME` 指定配置根目录，默认是 `~/.buddy-switcher`。写脚本驱动界面

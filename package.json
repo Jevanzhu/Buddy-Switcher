@@ -1,15 +1,17 @@
 {
   "name": "buddy-switcher",
   "version": "1.0.0",
-  "description": "CodeBuddy Desktop 多账号切换器（Windows / macOS）",
+  "description": "CodeBuddy / WorkBuddy 多账号切换器（Windows / macOS）",
   "main": "main.js",
   "author": "jevanzhu",
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
+    "start": "node scripts/dev.js",
+    "dev": "node scripts/dev.js",
+    "icon": "node scripts/make-icon.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dist:win": "electron-builder --win portable"
   },
   "devDependencies": {
     "electron": "^45.2.1",

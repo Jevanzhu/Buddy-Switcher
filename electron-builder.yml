@@ -1,10 +1,20 @@
 appId: com.cbswitcher.app
 productName: Buddy-Switcher
+# 只留中英文语言包，其余 50 多个 pak 白占体积
+electronLanguages:
+  - zh-CN
+  - en-US
+# 极限压缩，portable 用最高档
+compression: maximum
+# 打包后删掉用不到的图形组件
+afterPack: scripts/after-pack.js
 directories:
   output: dist
+  buildResources: build
 files:
   - main.js
   - preload.js
+  - sync.js
   - renderer/**
 mac:
   category: public.app-category.utilities
@@ -14,9 +24,11 @@ mac:
     - target: zip
       arch: [arm64, x64]
 win:
+  icon: build/icon.png
   target:
-    - portable
-    - nsis
-nsis:
-  oneClick: true
-  perMachine: false
+    - target: portable
+      arch: [x64]
+portable:
+  artifactName: Buddy-Switcher-${version}-portable.${ext}
+  requestExecutionLevel: user
+  unpackDirName: Buddy-Switcher

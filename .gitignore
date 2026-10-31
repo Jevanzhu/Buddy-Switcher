@@ -1,2 +1,17 @@
+# 依赖与打包产物
 node_modules/
 dist/
+build/*
+!build/icon.png
+
+# 本地临时文件
+.tmp-*
+*.log
+npm-debug.log*
+
+# 工具与系统
+.codebuddy/
+.DS_Store
+Thumbs.db
+desktop.ini
+

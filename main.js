@@ -620,6 +620,43 @@ async function listProfiles(P) {
   }));
 }
 
+// CURRENT-<产品> 只是上次操作留下的标记，真实身份以 auth 目录为准。
+// 打开 App、刷新状态、切换前都按 uid 对一次档案：用户在外面换了号，标记要跟着走；
+// 当前登录没存过档案就清掉标记，避免下次切换把登录回存进错误的档案。
+async function reconcileCurrent(P, state) {
+  const account = state && state.account !== undefined
+    ? state.account
+    : await readAccountInfo(authDir(), P);
+  const profiles = state && state.profiles ? state.profiles : await listProfiles(P);
+  const current = state && state.current !== undefined ? state.current : await readCurrent(P);
+  const uid = account && account.uid;
+  const matches = [];
+
+  if (uid) {
+    for (const p of profiles) {
+      if (p.accountUid === uid) {
+        matches.push(p);
+      } else if (!p.accountUid && p.hasSession) {
+        // 老档案的 meta 里可能没有 uid，读档案内的会话再比一次
+        const acc = await readAccountInfo(path.join(profilesDir(P), p.name, 'auth'), P);
+        if (acc && acc.uid === uid) matches.push(p);
+      }
+    }
+  }
+
+  if (!matches.length) {
+    if (current) await fsp.rm(currentFile(P), { force: true }).catch(() => {});
+    return '';
+  }
+  if (matches.some((p) => p.name.toLowerCase() === String(current).toLowerCase())) {
+    return current;
+  }
+  // 同一个账号存了多份时优先保留已有标记，否则取最近保存的那份
+  const best = matches.sort((a, b) => String(b.savedAt || '').localeCompare(String(a.savedAt || '')))[0];
+  await writeCurrent(P, best.name);
+  return best.name;
+}
+
 // 只搬本产品的会话文件，同目录下别的 App 的会话保持原样
 async function copyAuth(P, from, to) {
   const files = await authFiles(from, P);
@@ -755,11 +792,12 @@ async function accountCached(P) {
 
 async function getStatus(productId) {
   const P = productById(productId);
-  const [current, profiles, account] = await Promise.all([
+  const [currentRaw, profiles, account] = await Promise.all([
     readCurrent(P),
     listProfilesCached(P),
     accountCached(P)
   ]);
+  const current = await reconcileCurrent(P, { current: currentRaw, profiles, account });
   const state = appStateOf(P);
   return {
     platform: process.platform,
@@ -824,7 +862,8 @@ async function switchTo(productId, rawName) {
   if (!dir) throw new Error('档案不存在：' + rawName);
   const actual = path.basename(dir);
 
-  const current = await readCurrent(P);
+  // 先按当前登录账号校准标记，避免把现在的会话回存进旧档案
+  const current = await reconcileCurrent(P);
   if (current && current.toLowerCase() === actual.toLowerCase()) {
     throw new Error('「' + actual + '」就是当前账号，无需切换');
   }

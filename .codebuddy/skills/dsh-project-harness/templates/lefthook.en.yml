@@ -1,0 +1,39 @@
+# Commit hooks: deliberately thin.
+#
+# Only "fix it right now" chores. No tests, snapshots, doc gates, or builds —
+# a slow hook teaches people to use --no-verify, and a bypassed hook is worse
+# than none because it manufactures the illusion of checking. The full matrix
+# belongs to CI.
+#
+# Install: lefthook install (or wire it into your own toolchain)
+
+pre-commit:
+  parallel: false
+  jobs:
+    - name: lint (staged)
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs}'
+      run: <your linter> --fix {staged_files}
+      stage_fixed: true
+
+    - name: whitespace (staged)
+      run: git diff --cached --check
+
+    - name: agent note format (staged)
+      glob: '.agents/notes/**/*.md'
+      run: node scripts/harness/verify-agent-note-format.ts
+
+    - name: archived agent notes (staged)
+      glob: '.agents/notes/archived/**'
+      run: node scripts/harness/verify-archived-agent-notes.ts
+
+pre-merge-commit:
+  jobs:
+    - name: agent note format (staged)
+      glob: '.agents/notes/**/*.md'
+      run: node scripts/harness/verify-agent-note-format.ts
+
+# The pre-push hook may be a little heavier than the commit hook, but no further.
+pre-push:
+  jobs:
+    - name: typecheck (incremental)
+      run: <your incremental typecheck>

@@ -10,7 +10,7 @@ build/*
 npm-debug.log*
 
 # 工具与系统
-.codebuddy/
+#.codebuddy/
 .DS_Store
 Thumbs.db
 desktop.ini

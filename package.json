@@ -10,7 +10,7 @@
     "dev": "node scripts/dev.js",
     "icon": "node scripts/make-icon.js",
     "dist": "electron-builder",
-    "dist:mac": "electron-builder --mac",
+    "dist:mac": "electron-builder --mac --arm64 --x64",
     "dist:win": "electron-builder --win portable"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@ node_modules/
 dist/
 build/*
 !build/icon.png
+!build/icon.icns
 
 # 本地临时文件
 .tmp-*

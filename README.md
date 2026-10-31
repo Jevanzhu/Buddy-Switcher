@@ -23,13 +23,17 @@
 - 切换会让对应 App 退出并重启，正在进行的对话会中断
 - 档案里是完整的登录凭证，**不要分享，也不要放到公共网盘**
 - 不要使用 App 自带的「退出登录」：登出会让服务端吊销 token，已保存的档案就作废了
-- 程序未做代码签名，Windows SmartScreen 提示时选择「更多信息 → 仍要运行」
+- 程序未使用开发者证书签名。Windows SmartScreen 提示时选择「更多信息 → 仍要运行」；
+  macOS 首次打开被拦时，去「系统设置 → 隐私与安全性」点「仍要打开」
+- macOS 首次切换可能会弹「Buddy-Switcher 想控制 CodeBuddy Desktop / WorkBuddy」的授权，
+  允许后程序才能让 App 正常退出；拒绝也能用，但会等 3 秒后强制结束
 - 同一时间只允许运行一个实例
 
 ## 运行环境
 
-- Windows 10 / 11（x64）
-- 免安装，单个 exe 双击即用
+- Windows 10 / 11（x64）：免安装，单个 exe 双击即用
+- macOS（Apple Silicon / Intel）：dmg 安装，或解压 zip 后把 App 拖进「应用程序」
+- macOS 上 CodeBuddy / WorkBuddy 需放在 `/Applications` 或 `~/Applications`，程序靠这两个位置判断是否已安装
 
 ## 许可
 

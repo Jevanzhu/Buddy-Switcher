@@ -28,6 +28,7 @@ const PRODUCTS = [
     label: 'CodeBuddy',
     appName: 'CodeBuddy Desktop',
     exe: 'CodeBuddy Desktop.exe',
+    bundleId: 'com.tencent.codebuddy.desktop',
     authPrefix: 'Tencent-Cloud.coding-copilot'
   },
   {
@@ -35,6 +36,7 @@ const PRODUCTS = [
     label: 'WorkBuddy',
     appName: 'WorkBuddy',
     exe: 'WorkBuddy.exe',
+    bundleId: 'com.tencent.workbuddy.mac',
     authPrefix: 'workbuddy-desktop'
   }
 ];
@@ -129,10 +131,15 @@ function productById(id) {
 }
 
 // 账号身份只由这一处决定，各 App 读的是同一个目录，只是文件名不同：
-//   <LOCALAPPDATA>/CodeBuddyExtension/Data/Public/auth/<产品id>.info
+//   Windows: %LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\<产品id>.info
+//   macOS:   ~/Library/Application Support/CodeBuddyExtension/Data/Public/auth/<产品id>.info
 // 内容为 JSON：account.uid / auth.accessToken / auth.refreshToken 是明文；
 // WorkBuddy 额外把 nickname、accessToken 包成 $wbEncrypted 信封，本机解不开，只能读 uid / uin。
 function authDir() {
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support',
+      'CodeBuddyExtension', 'Data', 'Public', 'auth');
+  }
   const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
   return path.join(local, 'CodeBuddyExtension', 'Data', 'Public', 'auth');
 }
@@ -218,6 +225,19 @@ async function waitForStop(P, timeoutMs) {
   return false;
 }
 
+// macOS 没有 taskkill：先按 bundle id 让 App 自己退出（改过 App 名字也能找到），
+// 不行再按名字试一次，仍失败就等下面的强杀兜底。
+async function quitOnMac(P) {
+  const byId = P.bundleId
+    ? await execP('osascript', ['-e', 'tell application id "' + P.bundleId + '" to quit'])
+    : { err: new Error('没有 bundle id') };
+  if (!byId.err) return;
+  const byName = await execP('osascript', ['-e', 'quit app "' + P.appName + '"']);
+  if (byName.err) {
+    log('! 优雅退出失败：' + (byName.stderr || byName.err.message).trim());
+  }
+}
+
 async function quitApp(P) {
   const state = await probeApp(P);
   if (state === 'unknown') {
@@ -230,7 +250,7 @@ async function quitApp(P) {
 
   log('→ 正在退出 ' + P.appName + ' ...');
   if (process.platform === 'darwin') {
-    await execP('osascript', ['-e', 'quit app "' + P.appName + '"']);
+    await quitOnMac(P);
   } else {
     await execP('taskkill', ['/T', '/IM', P.exe]);
   }
@@ -284,8 +304,20 @@ function isFile(p) {
   try { return fs.statSync(p).isFile(); } catch (e) { return false; }
 }
 
+// Windows 存的是 .exe 文件，macOS 存的是 .app 目录
+function isLauncherPath(p) {
+  try { return process.platform === 'darwin' ? fs.statSync(p).isDirectory() : fs.statSync(p).isFile(); }
+  catch (e) { return false; }
+}
+
 function standardExeCandidates(P) {
   const home = os.homedir();
+  if (process.platform === 'darwin') {
+    return [
+      path.join('/Applications', P.appName + '.app'),
+      path.join(home, 'Applications', P.appName + '.app')
+    ];
+  }
   const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
   const list = [
     path.join(local, 'Programs', P.appName, P.exe),
@@ -324,22 +356,25 @@ async function registryExeCandidates(P) {
 
 async function resolveExe(P) {
   const cached = await readLauncherPath(P);
-  if (cached && isFile(cached)) {
+  if (cached && isLauncherPath(cached)) {
     exeState[P.id] = cached;
     return cached;
   }
 
   log('→ 正在定位 ' + P.appName + ' 主程序 ...');
   for (const c of standardExeCandidates(P)) {
-    if (isFile(c)) {
+    if (isLauncherPath(c)) {
       await writeLauncherPath(P, c).catch(() => {});
       return c;
     }
   }
-  for (const c of await registryExeCandidates(P)) {
-    if (isFile(c)) {
-      await writeLauncherPath(P, c).catch(() => {});
-      return c;
+  // 注册表只有 Windows 有；macOS 走完 /Applications 探测就算完
+  if (process.platform === 'win32') {
+    for (const c of await registryExeCandidates(P)) {
+      if (isFile(c)) {
+        await writeLauncherPath(P, c).catch(() => {});
+        return c;
+      }
     }
   }
   exeState[P.id] = '';
@@ -347,11 +382,13 @@ async function resolveExe(P) {
 }
 
 async function pickExe(P) {
+  const mac = process.platform === 'darwin';
   const r = await dialog.showOpenDialog(win, {
-    title: '选择 ' + P.appName + ' 主程序',
+    title: '选择 ' + P.appName + (mac ? ' 应用' : ' 主程序'),
     buttonLabel: '使用此程序',
     properties: ['openFile'],
-    filters: [{ name: '可执行文件', extensions: ['exe'] }]
+    // macOS 的 .app 是目录，默认按「包」当文件选
+    filters: [{ name: mac ? '应用程序' : '可执行文件', extensions: [mac ? 'app' : 'exe'] }]
   });
   if (r.canceled || !r.filePaths.length) return '';
   await writeLauncherPath(P, r.filePaths[0]);
@@ -361,7 +398,9 @@ async function pickExe(P) {
 
 async function launchApp(P) {
   if (process.platform === 'darwin') {
-    const r = await execP('open', ['-a', P.appName]);
+    // 按 bundle id 启动，不依赖 App 装在哪、叫什么
+    let r = P.bundleId ? await execP('open', ['-b', P.bundleId]) : { err: new Error('没有 bundle id') };
+    if (r.err) r = await execP('open', ['-a', P.appName]);
     if (r.err) throw new Error('启动失败：' + (r.stderr || r.err.message));
   } else {
     let exe = await resolveExe(P);
@@ -430,7 +469,7 @@ function validateName(raw) {
   if (!NAME_RE.test(name)) {
     throw new Error('档案名只能包含中文、字母、数字、_ 或 -，长度 1-32');
   }
-  if (RESERVED_NAMES.has(name.toLowerCase())) {
+  if (process.platform === 'win32' && RESERVED_NAMES.has(name.toLowerCase())) {
     throw new Error('「' + name + '」是 Windows 保留名称，请换一个');
   }
   return name;
@@ -1285,6 +1324,20 @@ ipcMain.handle('sync-list', wrap(() => syncInventory()));
 ipcMain.handle('sync-push', wrap(() => syncPush()));
 ipcMain.handle('sync-pull', wrap(() => syncPull()));
 
+// macOS 的复制/粘贴/退出快捷键挂在菜单角色上，清空菜单会让输入框丢快捷键；
+// Windows 继续不要菜单栏。
+function installMenu() {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null);
+    return;
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: 'appMenu' },
+    { role: 'editMenu' },
+    { role: 'windowMenu' }
+  ]));
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 880,
@@ -1302,7 +1355,7 @@ function createWindow() {
       sandbox: true
     }
   });
-  Menu.setApplicationMenu(null);
+  installMenu();
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
   if (!app.isPackaged) watchRenderer(win);

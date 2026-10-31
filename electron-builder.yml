@@ -17,12 +17,14 @@ files:
   - sync.js
   - renderer/**
 mac:
+  icon: build/icon.icns
   category: public.app-category.utilities
+  # 没有开发者证书时用 ad-hoc 签名，否则 Apple Silicon 上会提示应用已损坏
+  identity: '-'
+  # 不写死 arch，默认打当前机器的架构；交叉打包用 --arm64 / --x64 指定
   target:
-    - target: dmg
-      arch: [arm64, x64]
-    - target: zip
-      arch: [arm64, x64]
+    - dmg
+    - zip
 win:
   icon: build/icon.png
   target:

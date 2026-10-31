@@ -1,7 +1,7 @@
 'use strict';
 
 const { app, BrowserWindow, Menu, ipcMain, dialog, shell, nativeTheme, safeStorage } = require('electron');
-const { execFile, spawn } = require('child_process');
+const { execFile, execFileSync, spawn } = require('child_process');
 const sync = require('./sync');
 const path = require('path');
 const os = require('os');
@@ -1102,9 +1102,24 @@ async function runAutoSync() {
 }
 
 // 远程用主机名给每台机器分目录，看得懂是哪台；主机名里有非法字符就换掉
+// os.hostname() 在 macOS 上拿到的是内核/DHCP 主机名（这台机器上是 6c1ff71bae96），
+// 不是「关于本机」里显示的名字；同步目录用 ComputerName 才符合用户认知。
+function macComputerName() {
+  for (const key of ['ComputerName', 'LocalHostName']) {
+    try {
+      const name = execFileSync('scutil', ['--get', key], { encoding: 'utf8', timeout: 2000 }).trim();
+      if (name) return name;
+    } catch (e) { /* 取不到就试下一个 */ }
+  }
+  return '';
+}
+
 function hostSlug() {
   let name = '';
-  try { name = os.hostname() || ''; } catch (e) { name = ''; }
+  if (process.platform === 'darwin') name = macComputerName();
+  if (!name) {
+    try { name = os.hostname() || ''; } catch (e) { name = ''; }
+  }
   name = name.trim().replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^[.\-]+|[.\-]+$/g, '');
   return name.slice(0, 48);
 }

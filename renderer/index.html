@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'" />
+  <title>Buddy-Switcher — CodeBuddy 账号切换器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Buddy-Switcher <span class="hint">CodeBuddy 账号切换器</span></h1>
+    <div class="status-bar">
+      <span>当前档案：<b id="current-profile">…</b></span>
+      <span>CodeBuddy Desktop：<b id="app-state">…</b></span>
+      <button id="refresh" class="ghost" title="刷新状态">刷新</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>账号档案</h2>
+      <p class="hint" id="profiles-hint">还没有任何档案。先把 CodeBuddy Desktop 里当前登录的账号保存为第一个档案。</p>
+      <div id="profile-list" class="profile-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>新建档案</h2>
+      <div class="row">
+        <input id="new-name" type="text" maxlength="32" placeholder="档案名，如：工作 / 个人" />
+        <button id="save-new">保存当前账号为新档案</button>
+      </div>
+      <p class="hint">保存时会让 CodeBuddy Desktop 退出一次，完成后自动重启。</p>
+    </section>
+
+    <section class="card">
+      <h2>首次使用（三步）</h2>
+      <ol class="steps">
+        <li>在 CodeBuddy Desktop 登录<strong>账号 A</strong>，回到这里保存为档案「A」。</li>
+        <li>在 CodeBuddy Desktop 退出登录，改登<strong>账号 B</strong>，再保存为档案「B」。</li>
+        <li>之后点击档案卡片上的「切换」，即可一键换号。</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>操作日志</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <footer>
+    <button id="open-folder" class="ghost">打开档案目录</button>
+    <span class="hint" id="data-dir"></span>
+  </footer>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
